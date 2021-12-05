@@ -16,6 +16,8 @@ from collections import defaultdict
 import PIL.Image
 import dnnlib
 from concurrent.futures import ThreadPoolExecutor
+import tensorflow as tf
+import json
 
 import config
 from training import dataset
@@ -30,18 +32,27 @@ def open_file_or_url(file_or_url):
     return open(file_or_url, 'rb')
 
 def load_pkl(file_or_url):
-    with open_file_or_url(file_or_url) as file:
-        return pickle.load(file, encoding='latin1')
+    try:
+        with open_file_or_url(file_or_url) as file:
+            return pickle.load(file, encoding='latin1')
+    except:
+        tf.keras.models.load_model(file_or_url)
+        # with open(file_or_url) as fjson:
+        #     return json.load(fjson)
 
 def save_pkl(obj, filename):
     print(f"PICKLE FILE TO SAVE: {filename}")
     print(f"OBJECT TO SAVE: {obj}")
+    print(f"TYPE OF OBJECT TO SAVE: {type(obj)}")
     try:
         with open(filename, 'wb') as file:
             pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
     except:
-        # obj.save(filename.split('.')[0]+'.h5')
         pass
+        # for i, object in enumerate(obj):
+        #     filename = f"{filename.split('.')[0]}{i}.pkl"
+        #     with open(filename, 'w') as file:
+        #         pickle.dump(object, file, protocol=pickle.HIGHEST_PROTOCOL)
 
 #----------------------------------------------------------------------------
 # Image utils.
