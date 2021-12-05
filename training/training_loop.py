@@ -20,11 +20,12 @@ from training import dataset
 from training import misc
 from metrics import metric_base
 
-# tf.disable_eager_execution()
+tf.config.run_functions_eagerly(True)
+# tf.compat.v1.disable_eager_execution()
 
-# tf_config = tf.ConfigProto()
+# tf_config = tf.compat.v1.ConfigProto()
 # tf_config.gpu_options.allow_growth=True   
-# sess = tf.Session(config=tf_config)
+# sess = tf.compat.v1.Session(config=tf_config)
 
 #----------------------------------------------------------------------------
 # Just-in-time processing of training images before feeding them to the networks.
@@ -166,11 +167,11 @@ def training_loop(
 
     print('Building TensorFlow graph...')
     with tf.name_scope('Inputs'), tf.device('/cpu:0'):
-        lod_in          = tf.placeholder(tf.float32, name='lod_in', shape=[])
-        lrate_in        = tf.placeholder(tf.float32, name='lrate_in', shape=[])
-        minibatch_in    = tf.placeholder(tf.int32, name='minibatch_in', shape=[])
+        lod_in          = tf.compat.v1.placeholder(tf.float32, name='lod_in', shape=[])
+        lrate_in        = tf.compat.v1.placeholder(tf.float32, name='lrate_in', shape=[])
+        minibatch_in    = tf.compat.v1.placeholder(tf.int32, name='minibatch_in', shape=[])
         minibatch_split = minibatch_in // submit_config.num_gpus
-        Gs_beta         = 0.5 ** tf.div(tf.cast(minibatch_in, tf.float32), G_smoothing_kimg * 1000.0) if G_smoothing_kimg > 0.0 else 0.0
+        Gs_beta         = 0.5 ** tf.compat.v1.div(tf.cast(minibatch_in, tf.float32), G_smoothing_kimg * 1000.0) if G_smoothing_kimg > 0.0 else 0.0
 
     G_opt = tflib.Optimizer(name='TrainG', learning_rate=lrate_in, **G_opt_args)
     D_opt = tflib.Optimizer(name='TrainD', learning_rate=lrate_in, **D_opt_args)
@@ -178,7 +179,7 @@ def training_loop(
         with tf.name_scope('GPU%d' % gpu), tf.device('/gpu:%d' % gpu):
             G_gpu = G if gpu == 0 else G.clone(G.name + '_shadow')
             D_gpu = D if gpu == 0 else D.clone(D.name + '_shadow')
-            lod_assign_ops = [tf.assign(G_gpu.find_var('lod'), lod_in), tf.assign(D_gpu.find_var('lod'), lod_in)]
+            lod_assign_ops = [tf.compat.v1.assign(G_gpu.find_var('lod'), lod_in), tf.compat.v1.assign(D_gpu.find_var('lod'), lod_in)]
             reals, labels = training_set.get_minibatch_tf()
             reals = process_reals(reals, lod_in, mirror_augment, training_set.dynamic_range, drange_net)
             with tf.name_scope('G_loss'), tf.control_dependencies(lod_assign_ops):
@@ -193,7 +194,9 @@ def training_loop(
     Gs_update_op = Gs.setup_as_moving_average_of(G, beta=Gs_beta)
     with tf.device('/gpu:0'):
         try:
-            peak_gpu_mem_op = tf.contrib.memory_stats.MaxBytesInUse()
+            peak_gpu_mem_op = tf.config.experimental.get_memory_info('/gpu:0')
+            # print('Memory Usage', peak_gpu_mem_op)
+            # pass
         except tf.errors.NotFoundError:
             peak_gpu_mem_op = tf.constant(0)
 
@@ -205,7 +208,7 @@ def training_loop(
     print('Setting up run dir...')
     misc.save_image_grid(grid_reals, os.path.join(submit_config.run_dir, 'reals.png'), drange=training_set.dynamic_range, grid_size=grid_size)
     misc.save_image_grid(grid_fakes, os.path.join(submit_config.run_dir, 'fakes%06d.png' % resume_kimg), drange=drange_net, grid_size=grid_size)
-    summary_log = tf.summary.FileWriter(submit_config.run_dir)
+    summary_log = tf.summary.create_file_writer(submit_config.run_dir)
     if save_tf_graph:
         summary_log.add_graph(tf.get_default_graph())
     if save_weight_histograms:
@@ -256,7 +259,7 @@ def training_loop(
                 autosummary('Timing/sec_per_tick', tick_time),
                 autosummary('Timing/sec_per_kimg', tick_time / tick_kimg),
                 autosummary('Timing/maintenance_sec', maintenance_time),
-                autosummary('Resources/peak_gpu_mem_gb', peak_gpu_mem_op.eval() / 2**30)))
+                autosummary('Resources/peak_gpu_mem_gb', peak_gpu_mem_op['peak'] / 2**30)))
             autosummary('Timing/total_hours', total_time / (60.0 * 60.0))
             autosummary('Timing/total_days', total_time / (24.0 * 60.0 * 60.0))
 

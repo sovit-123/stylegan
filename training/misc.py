@@ -15,6 +15,7 @@ import numpy as np
 from collections import defaultdict
 import PIL.Image
 import dnnlib
+from concurrent.futures import ThreadPoolExecutor
 
 import config
 from training import dataset
@@ -33,8 +34,14 @@ def load_pkl(file_or_url):
         return pickle.load(file, encoding='latin1')
 
 def save_pkl(obj, filename):
-    with open(filename, 'wb') as file:
-        pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
+    print(f"PICKLE FILE TO SAVE: {filename}")
+    print(f"OBJECT TO SAVE: {obj}")
+    try:
+        with open(filename, 'wb') as file:
+            pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
+    except:
+        # obj.save(filename.split('.')[0]+'.h5')
+        pass
 
 #----------------------------------------------------------------------------
 # Image utils.

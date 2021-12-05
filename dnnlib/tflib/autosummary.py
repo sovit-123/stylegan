@@ -58,11 +58,11 @@ def _create_var(name: str, value_expr: TfExpression) -> TfExpression:
         v = [size_expr, v, tf.square(v)]
     else:
         v = [size_expr, tf.reduce_sum(v), tf.reduce_sum(tf.square(v))]
-    v = tf.cond(tf.is_finite(v[1]), lambda: tf.stack(v), lambda: tf.zeros(3, dtype=_dtype))
+    v = tf.cond(tf.compat.v1.is_finite(v[1]), lambda: tf.stack(v), lambda: tf.zeros(3, dtype=_dtype))
 
     with tfutil.absolute_name_scope("Autosummary/" + name_id), tf.control_dependencies(None):
         var = tf.Variable(tf.zeros(3, dtype=_dtype), trainable=False)  # [sum(1), sum(x), sum(x**2)]
-    update_op = tf.cond(tf.is_variable_initialized(var), lambda: tf.assign_add(var, v), lambda: tf.assign(var, v))
+    update_op = tf.cond(tf.compat.v1.is_variable_initialized(var), lambda: tf.compat.v1.assign_add(var, v), lambda: tf.compat.v1.assign(var, v))
 
     if name in _vars:
         _vars[name].append(var)
@@ -100,7 +100,7 @@ def autosummary(name: str, value: TfExpressionEx, passthru: TfExpressionEx = Non
     else:  # python scalar or numpy array
         if name not in _immediate:
             with tfutil.absolute_name_scope("Autosummary/" + name_id), tf.device(None), tf.control_dependencies(None):
-                update_value = tf.placeholder(_dtype)
+                update_value = tf.compat.v1.placeholder(_dtype)
                 update_op = _create_var(name, update_value)
                 _immediate[name] = update_op, update_value
 
@@ -130,8 +130,8 @@ def finalize_autosummaries() -> None:
                 moments = tf.add_n(vars_list)
                 moments /= moments[0]
                 with tf.control_dependencies([moments]):  # read before resetting
-                    reset_ops = [tf.assign(var, tf.zeros(3, dtype=_dtype)) for var in vars_list]
-                    with tf.name_scope(None), tf.control_dependencies(reset_ops):  # reset before reporting
+                    reset_ops = [tf.compat.v1.assign(var, tf.zeros(3, dtype=_dtype)) for var in vars_list]
+                    with tf.name_scope('after_train_summary'), tf.control_dependencies(reset_ops):  # reset before reporting
                         mean = moments[1]
                         std = tf.sqrt(moments[2] - tf.square(moments[1]))
                         tf.summary.scalar(name, mean)
@@ -164,7 +164,8 @@ def finalize_autosummaries() -> None:
             margin = layout_pb2.MarginChartContent(series=series)
             charts.append(layout_pb2.Chart(title=chart_name, margin=margin))
         categories.append(layout_pb2.Category(title=cat_name, chart=charts))
-    layout = summary_lib.custom_scalar_pb(layout_pb2.Layout(category=categories))
+    # layout = summary_lib.custom_scalar_pb(layout_pb2.Layout(category=categories))
+    layout = None
     return layout
 
 def save_summaries(file_writer, global_step=None):
@@ -179,6 +180,10 @@ def save_summaries(file_writer, global_step=None):
         if layout is not None:
             file_writer.add_summary(layout)
         with tf.device(None), tf.control_dependencies(None):
-            _merge_op = tf.summary.merge_all()
-
-    file_writer.add_summary(_merge_op.eval(), global_step)
+            try:
+                _merge_op = tf.summary.merge_all()
+            except: pass
+    try:
+        file_writer.add_summary(_merge_op.eval(), global_step)
+    except:
+        pass

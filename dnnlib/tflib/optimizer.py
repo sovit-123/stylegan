@@ -9,6 +9,7 @@
 
 import numpy as np
 import tensorflow as tf
+tf.compat.v1.disable_v2_behavior()
 
 from collections import OrderedDict
 from typing import List, Union
@@ -39,7 +40,8 @@ class Optimizer:
 
     def __init__(self,
                  name: str = "Train",
-                 tf_optimizer: str = "tf.train.AdamOptimizer",
+                 tf_optimizer: str = "tf.compat.v1.train.AdamOptimizer",
+                #  tf_optimizer: str = "tf.optimizers.Adam",
                  learning_rate: TfExpressionEx = 0.001,
                  use_loss_scaling: bool = False,
                  loss_scaling_init: float = 64.0,
@@ -51,7 +53,7 @@ class Optimizer:
         self.name = name
         self.learning_rate = tf.convert_to_tensor(learning_rate)
         self.id = self.name.replace("/", ".")
-        self.scope = tf.get_default_graph().unique_name(self.id)
+        self.scope = tf.compat.v1.get_default_graph().unique_name(self.id)
         self.optimizer_class = util.get_obj_by_name(tf_optimizer)
         self.optimizer_kwargs = dict(kwargs)
         self.use_loss_scaling = use_loss_scaling
@@ -95,7 +97,12 @@ class Optimizer:
                 self._dev_grads[dev] = []
 
             loss = self.apply_loss_scaling(tf.cast(loss, tf.float32))
-            grads = self._dev_opt[dev].compute_gradients(loss, trainable_vars, gate_gradients=tf.train.Optimizer.GATE_NONE)  # disable gating to reduce memory usage
+            grads = self._dev_opt[dev].compute_gradients(
+                loss, trainable_vars, 
+                aggregation_method=None,
+                colocate_gradients_with_ops=False, grad_loss=None
+                # gate_gradients=tf.compat.v1.train.Optimizer.GATE_NONE
+            )  # disable gating to reduce memory usage
             grads = [(g, v) if g is not None else (tf.zeros_like(v), v) for g, v in grads]  # replace disconnected gradients with zeros
             self._dev_grads[dev].append(grads)
 
@@ -149,7 +156,7 @@ class Optimizer:
 
                     # Check for overflows.
                     with tf.name_scope("CheckOverflow"):
-                        grad_ok = tf.reduce_all(tf.stack([tf.reduce_all(tf.is_finite(g)) for g, v in grads]))
+                        grad_ok = tf.reduce_all(tf.stack([tf.reduce_all(tf.compat.v1.is_finite(g)) for g, v in grads]))
 
                     # Update weights and adjust loss scaling.
                     with tf.name_scope("UpdateWeights"):
