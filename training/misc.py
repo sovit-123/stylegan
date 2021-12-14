@@ -32,11 +32,11 @@ def open_file_or_url(file_or_url):
     return open(file_or_url, 'rb')
 
 def load_pkl(file_or_url):
-    try:
-        with open_file_or_url(file_or_url) as file:
-            return pickle.load(file, encoding='latin1')
-    except:
-        tf.keras.models.load_model(file_or_url)
+    # try:
+    with open_file_or_url(file_or_url) as file:
+        return pickle.load(file, encoding='latin1')
+    # except:
+    #     tf.keras.models.load_model(file_or_url)
         # with open(file_or_url) as fjson:
         #     return json.load(fjson)
 

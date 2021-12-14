@@ -57,29 +57,30 @@ class FID(metric_base.MetricBase):
         cache_file = self._get_cache_file_for_reals(num_images=self.num_images)
         print(f"CACHE FILE: {cache_file}\n")
         os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-        if os.path.isfile(cache_file):
-            print(f"LOADING CACHE FILE...")
-            mu_real, sigma_real = misc.load_pkl(cache_file)
-        else:
-            print('TOTAL NUM IMAGES', self.num_images, '\n')
-            for idx, images in enumerate(self._iterate_reals(minibatch_size=minibatch_size)):
-                if idx == 3:
-                    break
-                begin = idx * minibatch_size
-                end = min(begin + minibatch_size, self.num_images)
-                
-                # Change channels of `images` according Keras Inception H5 model.
-                images_channels_last = np.transpose(images, (0, 2, 3, 1))
-                print('NUM IMAGE:', idx, images_channels_last.shape)
+        # try:
+        #     if os.path.isfile(cache_file):
+        #         print(f"LOADING CACHE FILE...")
+        #         mu_real, sigma_real = misc.load_pkl(cache_file)
+        # except:
+        print('TOTAL NUM IMAGES', self.num_images, '\n')
+        for idx, images in enumerate(self._iterate_reals(minibatch_size=minibatch_size)):
+            if idx == 3:
+                break
+            begin = idx * minibatch_size
+            end = min(begin + minibatch_size, self.num_images)
+            
+            # Change channels of `images` according Keras Inception H5 model.
+            images_channels_last = np.transpose(images, (0, 2, 3, 1))
+            print('NUM IMAGE:', idx, images_channels_last.shape)
 
-                # activations[begin:end] = inception.run(images[:end-begin], num_gpus=num_gpus, assume_frozen=True)
-                activations = inception(images_channels_last)
-                if end == self.num_images:
-                    break
-            mu_real = tf.reduce_mean(activations, axis=0)
-            # sigma_real = np.cov(activations, rowvar=False)
-            sigma_real = return_cov(activations)
-            misc.save_pkl((mu_real, sigma_real), cache_file)
+            # activations[begin:end] = inception.run(images[:end-begin], num_gpus=num_gpus, assume_frozen=True)
+            activations = inception(images_channels_last)
+            if end == self.num_images:
+                break
+        mu_real = tf.reduce_mean(activations, axis=0)
+        # sigma_real = np.cov(activations, rowvar=False)
+        sigma_real = return_cov(activations)
+        misc.save_pkl((mu_real, sigma_real), cache_file)
 
         # Construct TensorFlow graph.
         result_expr = []
